@@ -1,7 +1,11 @@
-import discord
 import asyncio
+import discord
 from discord.ext import commands
+import os
 
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 target_user_id = 387317544228487168
 
 def is_target_user(ctx):
@@ -11,9 +15,13 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_user)
-    async def purge(ctx, limit: int, message_id: int):
+    @commands.max_concurrency(1, per=commands.BucketType.user)
+    async def purge(self, ctx, limit: int, message_id: float):
+        """
+        Purge a specified number of messages from a channel.
+        """
         # Check if the user has the necessary permissions to delete messages
         if not ctx.channel.permissions_for(ctx.author).manage_messages:
             await ctx.send("You don't have the permission to delete messages.")
@@ -39,5 +47,6 @@ class Moderation(commands.Cog):
         else:
             to_delete = [message for message in messages if message.id != target_message.id and message.id > triggered_message.id]
             await ctx.channel.delete_messages(to_delete)
-async def setup(bot):
-    await bot.add_cog(Moderation(bot))
+            
+def setup(bot):
+   	bot.add_cog(Moderation(bot))
