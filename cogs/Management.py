@@ -1,9 +1,12 @@
-import discord
 import asyncio
+import discord
 from discord.ext import commands
+import os
 
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 target_user_id = 387317544228487168
-
 def is_target_user(ctx):
     return ctx.author.id == target_user_id
 
@@ -11,9 +14,12 @@ class Management(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()     
+    @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_user)
     async def auto_translate(self, ctx):
+        """
+        Explains how to use the Translator Bot
+        """
         await ctx.send("# How to use Translator Bot\n## Try using it in <#1214775106019000380>")
         embed = discord.Embed(
             title='non-English speakers',
@@ -33,10 +39,12 @@ class Management(commands.Cog):
         embed.set_image(url='https://cdn.discordapp.com/attachments/1214621093311025223/1214772011788664895/image.png?ex=65fa5398&is=65e7de98&hm=1e717865aff99856aa4b7f4b4681f1ee8f7283b7d9e8f9ebebbb46072c4c3ca1&')
         await ctx.send(embed=embed)
         
-        
-    @commands.command() 
+    @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_user)
     async def friend_time(self, ctx):
+        """
+        Explains how to use Friend Time Bot (timezone)
+        """
         await ctx.send("# How to use Friend Time Bot (timezone)\n## Try using it in <#1214775106019000380>")
         embed = discord.Embed(
             title='Set your timezone',
@@ -55,20 +63,21 @@ class Management(commands.Cog):
         )
         embed.set_image(url='https://cdn.discordapp.com/attachments/1214621093311025223/1214792810654466088/image.png?ex=65fa66f7&is=65e7f1f7&hm=ba27c23e5bbc72a4367ab0dce632db6697a5ae35ef3720b1696f8366cdc8d659&')
         await ctx.send(embed=embed)
-
-    @commands.command() 
+        
+    @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_user)
     async def guild_rules(self, ctx):
+        """
+        Displays the Inmortals Guild Rules and Expectations
+        """
         embed = discord.Embed(
             title="Inmortals Guild Rules and Expectations",
-            description="Welcome to the Inmortals Guild! Inmortals is a guild started by <@698888351763136523>.Here are our rules and expectations for all members of the guild.",
+            description="Welcome to the Inmortals Guild! Inmortals is a guild started by <@698888351763136523>. Here are our rules and expectations for all members of the guild.",
             color=0x0099ff
         )
         embed.add_field(name="Rules", value="1. Be a decent human being in the game. No harassment, excessive shit talking, mistreatment, or hate speeches towards anyone.\n2. Be active in helping out both Inmortals and the server community.\n3. Weekly guild contribution of 4000.\n4. Play daily, like at least once every 8-10 hours for a while and participate in server events.\n5. Check Discord for important information.\n6. Be communicative in game and in Discord.\n7. No inactivity for more than 24-48 hours. If something were to happen in real life, let us know and we can accommodate you accordingly.\n8. If your progress or guild contribution is not aligned with what the guild needs, understand that the guild has helped you more than you have helped the guild. Do not take it personally if you are required to move to a different guild.", inline=False)
         embed.add_field(name="Purpose of Inmortals", value="Our purpose is to provide a strong environment for the strongest players in S40 to grow, and to provide stability and strength to the rest of the server when relied upon. Ultimately, our goal is to dominate with balance in other aspects of real life.", inline=False)
         embed.set_footer(text="Last updated on March 6, 2024")
         await ctx.send(embed=embed)
-        
-    
-async def setup(bot):
-    await bot.add_cog(Management(bot))
+def setup(bot):
+    bot.add_cog(Management(bot))
