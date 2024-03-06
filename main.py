@@ -167,4 +167,4 @@ async def on_message(message):
         print("BEEPBOOP")
         await message.add_reaction('\U0001F468\u200D\U0001F4BB') # computer emoji 
         
-bot.run('MTIxNDQxODUwNjE4NDEzODgxNA.G8nuNm.DXAcSAMQAhusBr1z7JNepoas6KNThghk9FCIrU')
+bot.run('BOT-TOKEN')
