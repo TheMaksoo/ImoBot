@@ -1,0 +1,228 @@
+function sortTimezoneAndName() {
+  var spreadsheet = SpreadsheetApp.openById("1NAV0AbQVd6RwauWS4TcaFu_ZmCY8yyJcyixdd8nm9CM");
+  var sheet = spreadsheet.getSheetByName("IMO");
+  
+  // Get all data
+  var data = sheet.getDataRange().getValues();
+  
+  // Sort data first by Timezone (high to low), then by Name (alphabetical order)
+  data.sort(function(a, b) {
+    var timezoneA = a[1].replace("GMT", ""); // Remove "GMT" from timezone string
+    var timezoneB = b[1].replace("GMT", ""); // Remove "GMT" from timezone string
+    var timeCompare = parseFloat(timezoneB) - parseFloat(timezoneA); // Compare timezones as numbers
+    
+    if (timeCompare !== 0) {
+      // If timezones are different, sort by timezone
+      return timeCompare;
+    } else {
+      // If timezones are the same, sort by Name (alphabetical order)
+      var nameA = a[0].toUpperCase();
+      var nameB = b[0].toUpperCase();
+      return nameA < nameB ? -1 : (nameA > nameB ? 1 : 0);
+    }
+  });
+  
+  // Clear the current content of the sheet
+  sheet.clearContents();
+  
+  // Write sorted data back to the sheet
+  sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+}
+
+function onEdit(e) {
+  var sheet = e.source.getSheetByName("IMO");
+  var range = e.range;
+  
+  // Check if the edited range is in the "IMO" sheet and if it is in the first column only
+  if (sheet.getName() === "IMO") {
+    sortTimezoneAndRank();
+  }
+}
+
+
+function sortTimezoneAndRank() {
+  var spreadsheet = SpreadsheetApp.openById("1NAV0AbQVd6RwauWS4TcaFu_ZmCY8yyJcyixdd8nm9CM");
+  var sheet = spreadsheet.getSheetByName("IMO");
+  var data = sheet.getDataRange().getValues();
+  
+  // Sort data first by Rank (high to low), then by Timezone (low to high)
+    data.sort(function(a, b) {
+    var rankA = a[4];
+    var rankB = b[4];
+    var timezoneA = a[1].replace("GMT", "");
+    var timezoneB = b[1].replace("GMT", "");
+    var timeCompare = parseFloat(timezoneB) - parseFloat(timezoneA); // Compare timezones as numbers
+    var rankCompare;
+    
+    // If the new member has a different timezone, sort by timezone
+    if (timeCompare !== 0 || data.indexOf(a) === 0) {
+      return timeCompare;
+    } else {
+      // If timezones are the same, sort by rank
+      rankCompare = rankB.localeCompare(rankA); // Compare ranks as strings
+      return rankCompare;
+    }
+  });
+  
+  // Clear the current content of the sheet
+  sheet.clearContents();
+  
+  // Write sorted data back to the sheet
+  sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+
+  colorCellsBasedOnRanks();
+  colorTimezone();
+  colorRemarkCells();
+  colorCellsBasedOnDiscord();
+}
+
+function colorCellsBasedOnRanks() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("IMO");
+
+  // object with the rank colors
+  var rankColors = {
+    "R1": "#008000", // Dark Green
+    "R2": "#405cf7", // Blue
+    "R3": "#d90738", // Light Red
+    "R4": "#FFA500", // Orange
+    "R5": "#fcdf03"  // Yellow
+  };
+
+  // Get the range of the ranks column
+  var ranksRange = sheet.getRange("E1:E" + sheet.getLastRow());
+
+  // Get the data in the ranks column
+  var ranksData = ranksRange.getValues();
+
+  // Loop through the data and set the cell background color based on the rank
+  for (var i = 0; i < ranksData.length; i++) {
+    var rank = ranksData[i][0];
+    if (rankColors.hasOwnProperty(rank)) {
+      sheet.getRange(i + 1, 5).setBackgroundColor(rankColors[rank]);
+    }
+  }
+}
+
+function colorTimezone() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("IMO");
+  var range = sheet.getRange("B2:B" + sheet.getLastRow());
+  var values = range.getValues();
+  
+  for (var i = 0; i < values.length; i++) {
+    var timezone = values[i][0];
+    var offset = timezone.replace("GMT", "");
+    var color;
+    
+    switch (offset) {
+      case "+12":
+        color = "#FF0000"; // Red
+        break;
+      case "+11":
+        color = "#FF4500"; // Orange-Red
+        break;
+      case "+10":
+        color = "#FF7F50"; // Coral
+        break;
+      case "+9":
+        color = "#FFB03B"; // Gold
+        break;
+      case "+8":
+        color = "#FFD700"; // Yellow
+        break;
+      case "+7":
+        color = "#9ACD32"; // Yellow-Green
+        break;
+      case "+6":
+        color = "#008000"; // Green
+        break;
+      case "+5":
+        color = "#00BFFF"; // Aqua
+        break;
+      case "+4":
+        color = "#0000FF"; // Blue
+        break;
+      case "+3":
+        color = "#4B0082"; // Indigo
+        break;
+      case "+2":
+        color = "#8B0000"; // Maroon
+        break;
+      case "+1":
+        color = "#FF00FF"; // Magenta
+        break;
+      case "0":
+        color = "#800080"; // Purple
+        break;
+      case "-1":
+        color = "#FFFF00"; // Yellow
+        break;
+      case "-2":
+        color = "#FFFFE0"; // Light Yellow
+        break;
+      case "-3":
+        color = "#FFF5EE"; // Light Yellow-Green
+        break;
+      case "-4":
+        color = "#D9FFD9"; // Pale Green
+        break;
+      case "-5":
+        color = "#B0E0E6"; // Powder Blue
+        break;
+      case "-6":
+        color = "#87CEEB"; // Sky Blue
+        break;
+      case "-7":
+        color = "#6A5ACD"; // Slate Blue
+        break;
+      case "-8":
+        color = "#483D8B"; // Dark Slate Blue
+        break;
+      case "-9":
+        color = "#000080"; // Navy
+        break;
+      case "-10":
+        color = "#0000CD"; // Medium Blue
+        break;
+      case "-11":
+        color = "#0000FF"; // Blue
+        break;
+      case "-12":
+        color = "#00008B"; // Dark Blue
+        break;
+      default:
+        color = "#FFFFFF"; // White
+    }
+    
+    range.getCell(i + 1, 1).setBackground(color);
+  }
+}
+
+function colorRemarkCells() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("IMO");
+  var range = sheet.getRange("D2:D" + sheet.getLastRow());
+  var values = range.getValues();
+
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][0] == "1") {
+      sheet.getRange("D" + (i + 2)).setBackground("red");
+    } else {
+      sheet.getRange("D" + (i + 2)).setBackground(null);
+    }
+  }
+}
+
+function colorCellsBasedOnDiscord() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("IMO");
+  var data = sheet.getDataRange().getValues();
+  
+  for (var i = 0; i < data.length; i++) {
+    var cell = data[i][2]; // Discord column
+    if (cell) {
+      // If the Discord cell is not empty, turn it green
+      sheet.getRange(i + 1, 3).setBackground("green");
+    } else {
+      // If the Discord cell is empty, leave it uncolored
+      sheet.getRange(i + 1, 3).setBackground(null);
+    }
+  }
+}
