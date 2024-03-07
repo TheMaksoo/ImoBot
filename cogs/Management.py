@@ -6,16 +6,47 @@ import os
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-target_user_id = 387317544228487168
-def is_target_user(ctx):
-    return ctx.author.id == target_user_id
+def is_target_role(ctx):
+    return any(role.name == "Manager" for role in ctx.author.roles)
 
 class Management(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.timezones = {}
+        self.guild_roles = {}
+        self.file_path = os.path.join('/home/container/storage', 'timezones.json')
+        self.guild_roles_path = os.path.join('/home/container/storage', 'guild_roles.json')
+        self.load_timezones()
+        self.load_guild_roles()
 
+    def load_timezones(self):
+        """Load the timezones from the JSON file."""
+        try:
+            with open(self.file_path, 'r') as f:
+                self.timezones = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.timezones = {}
+
+    def load_guild_roles(self):
+        """Load the guild roles from the JSON file."""
+        try:
+            with open(self.guild_roles_path, 'r') as f:
+                self.guild_roles = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.guild_roles = {}
+
+    def save_timezones(self):
+        """Save the timezones to the JSON file."""
+        with open(self.file_path, 'w') as f:
+            json.dump(self.timezones, f, indent=4)
+
+    def save_guild_roles(self):
+        """Save the guild roles to the JSON file."""
+        with open(self.guild_roles_path, 'w') as f:
+            json.dump(self.guild_roles, f, indent=4)
+            
     @bot.slash_command(guild_ids=[1102649117458563243])
-    @commands.check(is_target_user)
+    @commands.check(is_target_role)
     async def auto_translate(self, ctx):
         """
         Explains how to use the Translator Bot
@@ -40,7 +71,7 @@ class Management(commands.Cog):
         await ctx.send(embed=embed)
         
     @bot.slash_command(guild_ids=[1102649117458563243])
-    @commands.check(is_target_user)
+    @commands.check(is_target_role)
     async def friend_time(self, ctx):
         """
         Explains how to use Friend Time Bot (timezone)
@@ -65,7 +96,7 @@ class Management(commands.Cog):
         await ctx.send(embed=embed)
         
     @bot.slash_command(guild_ids=[1102649117458563243])
-    @commands.check(is_target_user)
+    @commands.check(is_target_role)
     async def guild_rules(self, ctx):
         """
         Displays the Inmortals Guild Rules and Expectations
@@ -79,5 +110,189 @@ class Management(commands.Cog):
         embed.add_field(name="Purpose of Inmortals", value="Our purpose is to provide a strong environment for the strongest players in S40 to grow, and to provide stability and strength to the rest of the server when relied upon. Ultimately, our goal is to dominate with balance in other aspects of real life.", inline=False)
         embed.set_footer(text="Last updated on March 6, 2024")
         await ctx.send(embed=embed)
+  
+          
+    
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def add_user(self, ctx, rank: str, name: str, guild_name: str, ign: Optional[str] = None, timezone: Optional[str] = None):
+        """
+        Add a user to the timezones.json file.
+
+        :param ctx: The context of the command.
+        :param rank: Rank of the user.
+        :param name: Name of the user.
+        :param guild_name: Name of the guild.
+        :param ign: In-game name of the user.
+        :param timezone: Timezone of the user.
+        """
+        member = ctx.author
+        user = {
+            str(member.id): {
+                'Name': member.name,
+                'IGN': ign or None,
+                'Timezone': timezone or None,
+                'Guild': guild_name,
+                'Rank': rank,
+            }
+        }
+        self.timezones.update(user)
+        self.save_timezones()
+
+        embed = discord.Embed(title="User Added", description=f"{member.mention} has been added to the database!", color=0x00ff00)
+        embed.add_field(name="Rank", value=rank, inline=True)
+        embed.add_field(name="Name", value=member.name, inline=True)
+        embed.add_field(name="IGN", value=ign or "Not specified", inline=True)
+        embed.add_field(name="Guild", value=guild_name, inline=True)
+        embed.add_field(name="Timezone", value=timezone or "Not specified", inline=True)
+        await ctx.send(embed=embed)
+
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def remove_user(self, ctx, member: discord.Member, ign: Optional[str] = None):
+        """
+        Remove a user from the timezones.json file.
+
+        :param ctx: The context of the command.
+        :param member: The member to remove.
+        :param ign: In-game name of the user.
+        """
+        user_id = None
+        if ign:
+            for user in self.timezones.values():
+                if user['IGN'] == ign:
+                    user_id = user['ID']
+                    break
+
+        if str(member.id) in self.timezones or user_id:
+            if user_id:
+                del self.timezones[user_id]
+            else:
+                del self.timezones[str(member.id)]
+            self.save_timezones()
+            embed = discord.Embed(title="User Removed", description=f"{member.mention if ign else ign} has been removed from the database.", color=0xff0000)
+            embed.add_field(name="Name", value=member.name, inline=True)
+            await ctx.send(embed=embed)
+        else:
+            embed = discord.Embed(title="User Not Found", description=f"{member.mention if ign else ign} was not found in the database.", color=0xff0000)
+            await ctx.send(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        """Update the user object in the JSON file if their roles change."""
+        guild_role = next((role for role in after.roles if role.name in self.guild_roles), None)
+        if not guild_role:
+            return
+
+        guild_name = self.guild_roles[guild_role.name]['name']
+        rank = next((int(role.name[1]) for role in after.roles if role.name.startswith('r')), None)
+
+        user = {
+            str(after.id): {
+                'Name': after.name,
+                'IGN': None,
+                'Timezone': None,
+                'Guild': guild_name,
+                'Rank': rank,
+            }
+        }
+
+        self.timezones.update(user)  # Update the user object
+        self.save_timezones()
+
+        embed = discord.Embed(title="User updated", description=f"{after.mention} has updated their roles.", color=0xff0000)
+        embed.add_field(name="Name", value=after.name, inline=True)
+        embed.add_field(name="Guild", value=guild_name, inline=True)
+        embed.add_field(name="Rank", value=rank, inline=True)
+        channel = self.bot.get_channel(1215443533037707334)
+        if channel:
+            await channel.send(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        """Update the user object in the JSON file if the member joins the guild."""
+        if member.guild != self.bot.guild:  # Check if the member is in the right guild
+            return
+
+        guild_role = next((role for role in member.roles if role.name in self.guild_roles), None)
+        if not guild_role:
+            return
+
+        guild_name = self.guild_roles[guild_role.name]['name']
+        rank = next((int(role.name[1]) for role in member.roles if role.name.startswith('r')), None)
+
+        user = {
+            str(member.id): {
+                'Name': member.name,
+                'IGN': None,
+                'Timezone': None,
+                'Guild': guild_name,
+                'Rank': rank,
+            }
+        }
+
+        self.timezones.update(user)  # Update the user object
+        self.save_timezones()
+
+        embed = discord.Embed(title="User Join", description=f"{member.mention} has joined the server.", color=0x00ff00)
+        embed.add_field(name="Name", value=member.name, inline=True)
+        embed.add_field(name="Guild", value=f"{guild_name} ({guild_role.name})", inline=True)
+        embed.add_field(name="Rank", value=rank, inline=True)
+        channel = self.bot.get_channel(1215443533037707334)
+        if channel:
+            await channel.send(embed=embed)
+        
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def add_guild_role(self, ctx, guild_name: str, tag: str):
+        """
+        Add a guild role to the JSON file.
+
+        :param ctx: The context of the command.
+        :param guild_name: Name of the guild.
+        :param tag: Tag of the guild.
+        """
+        self.guild_roles[guild_name] = {"tag": guild_tag, "name": guild_name}
+        self.save_guild_roles()
+        await ctx.send(f"Added {guild_name} with tag {tag} to the guild roles")
+
+    @commands.check(is_target_role)
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    async def remove_guild_role(
+        self,
+        ctx,
+        guild_name_or_tag: Option(
+            str,
+            "Enter the name or tag of the guild role you want to remove",
+            choices=[
+                OptionChoice(name=guild_name, value=guild_name)
+                for guild_name in self.guild_roles
+            ] + [
+                OptionChoice(name=f"Tag: {guild_name['tag']}", value=guild_name["tag"])
+                for guild_name in self.guild_roles.values()
+            ],
+        ),
+    ):
+        """
+        Remove a guild role from the JSON file.
+
+        :param ctx: The context of the command.
+        :param guild_name_or_tag: Name or tag of the guild.
+        """
+        if guild_name_or_tag in self.guild_roles:
+            del self.guild_roles[guild_name_or_tag]
+            self.save_guild_roles()
+            await ctx.send(f"Removed {guild_name_or_tag} from the guild roles")
+        else:
+            for guild_name in self.guild_roles:
+                if self.guild_roles[guild_name]["tag"] == guild_name_or_tag:
+                    del self.guild_roles[guild_name]
+                    self.save_guild_roles()
+                    await ctx.send(f"Removed {guild_name} from the guild roles")
+                    return
+            await ctx.send(f"{guild_name_or_tag} not found in the guild roles")
+        
+        
+        
 def setup(bot):
     bot.add_cog(Management(bot))
