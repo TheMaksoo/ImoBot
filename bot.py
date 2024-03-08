@@ -6,6 +6,7 @@ import psutil
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 target_user_id = 387317544228487168
 def is_target_user(ctx):
@@ -22,6 +23,25 @@ async def on_ready():
 async def test(ctx):
     """A test command to send a 'hii' message."""
     await ctx.send("hii")
+    
+@bot.slash_command(guild_ids=[1102649117458563243])
+async def guildsize(ctx):
+    """Show the number of members in the guild.
+
+    This command will gather all members of the guild before counting them.
+    """
+    guild = ctx.guild
+
+    # Gather all data
+    await ctx.respond((":compression: | Gathering all data, this may take a while..."))
+    try:
+        members = await ctx.guild.chunk(cache=False)
+        members = [user.id for user in members]
+    except Exception as e:
+        return await ctx.respond((f":x: | I couldn't gather the data! {e}"), ephemeral=True)
+
+    guild_size = len(members)
+    await ctx.send(f"There are {guild_size} members in this guild.")
 
 @bot.slash_command(guild_ids=[1102649117458563243])
 @commands.check(is_target_user)
