@@ -8,6 +8,7 @@ from itertools import groupby
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 def is_target_role(ctx):
     return any(role.name == "Manager" for role in ctx.author.roles)
@@ -250,7 +251,7 @@ class Management(commands.Cog):
         channel = self.bot.get_channel(1215443533037707334)
         if channel:
             await channel.send(embed=embed)
-                    
+            
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
     async def updateusers(self, ctx):
@@ -263,47 +264,75 @@ class Management(commands.Cog):
         updated_users = []
         added_users = []
         guild = ctx.guild
-        for member in guild.members:
-            guild_role = next((role for role in member.roles if role.name in self.guild_roles), None)
-            if not guild_role:
-                continue
+        max_embeds = 10  # Maximum number of embeds to send
+        current_embeds = 0  # Keep track of the current number of embeds sent
 
-            guild_name = self.guild_roles[guild_role.name]['name']
-            rank = next((int(role.name[1]) for role in member.roles if role.name.startswith('r')), None)
+        # Gather all data
+        await ctx.respond((":compression: | Gathering all data, this may take a while..."))
+        try:
+            members = await ctx.guild.chunk(cache=False)
+            members = [user.id for user in members]
+        except:
+            return await ctx.respond((":x: | I couldn't reset the data!"), ephemeral=True)
 
-            user = {
-                str(member.id): {
-                    'Name': member.name,
-                    'IGN': None,
-                    'Timezone': None,
-                    'Guild': guild_name,
-                    'Rank': rank,
+        try:
+            for member_id in members:
+                member = guild.get_member(member_id)
+                if not member:
+                    continue
+
+                print(f"Processing member {member.name} (ID: {member.id})")
+                guild_role = next((role for role in member.roles if role.name in self.guild_roles), None)
+                if not guild_role:
+                    continue
+
+                guild_name = self.guild_roles[guild_role.name]['name']
+                rank = next((int(role.name[1]) for role in member.roles if role.name.startswith('r')), None)
+
+                user = {
+                    str(member.id): {
+                        'Name': member.name,
+                        'IGN': None,
+                        'Timezone': None,
+                        'Guild': guild_name,
+                        'Rank': rank,
+                    }
                 }
-            }
 
-            if str(member.id) in self.timezones:
-                updated_users.append(member.name)
-                self.timezones[str(member.id)].update(user[str(member.id)])
-            else:
-                added_users.append(member.name)
-                self.timezones.update(user)
+                if str(member.id) in self.timezones:
+                    if self.timezones[str(member.id)] != user[str(member.id)]:
+                        updated_users.append(member.name)
+                        self.timezones[str(member.id)].update(user[str(member.id)])
+                else:
+                    added_users.append(member.name)
+                    self.timezones.update(user)
+
+                # Send embed message if list contains 20 users
+                if len(updated_users) == 20:
+                    updated_users_embed = discord.Embed(title="Updated Users", description=", ".join(updated_users), color=0x00ff00)
+                    await ctx.send(embed=updated_users_embed)
+                    current_embeds += 1
+                    updated_users = []
+
+                if len(added_users) == 20:
+                    added_users_embed = discord.Embed(title="Added Users", description=", ".join(added_users), color=0x00ff00)
+                    await ctx.send(embed=added_users_embed)
+                    current_embeds += 1
+                    added_users = []
+
+        except Exception as e:
+            print(f"An error occurred while processing members: {e}")
 
         self.save_timezones()
 
-        # Send an embed message to the user who executed the command
-        embed = discord.Embed(title="User Objects Updated", description="User objects have been updated for all members of the server.", color=0x00ff00)
-        embed.add_field(name="Updated Users", value=", ".join(updated_users), inline=False)
-        embed.add_field(name="Added Users", value=", ".join(added_users), inline=False)
-        await ctx.send(embed=embed)
+        # Send remaining embed messages to the user who executed the command
+        if updated_users:
+            updated_users_embed = discord.Embed(title="Updated Users", description=", ".join(updated_users), color=0x00ff00)
+            await ctx.send(embed=updated_users_embed)
+            current_embeds += 1
 
-        # Send a log message to the log channel
-        log_channel = self.bot.get_channel(1215443533037707334)  # Replace this with the ID of your log channel
-        if log_channel:
-            embed = discord.Embed(title="User Objects Updated", description="User objects have been updated for all members of the server.", color=0x00ff00)
-            embed.add_field(name="Updated Users", value=", ".join(updated_users), inline=False)
-            embed.add_field(name="Added Users", value=", ".join(added_users), inline=False)
-            await log_channel.send(embed=embed)
-
+        if added_users:
+            added_users_embed = discord.Embed(title="Added Users", description=", ".join(added_users), color=0x00ff00)
                     
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
@@ -330,14 +359,14 @@ class Management(commands.Cog):
     @commands.check(is_target_role)
     async def timezone(self, ctx, guild_name: str):
         """Display a timezone list of users in a guild."""
-        users = [user for user in self.timezones.values() if user["Guild"] == guild_name]
+        users = [user for user in self.timezones.values() if user and 'Guild' in user and 'Rank' in user and user["Rank"] is not None and user["Guild"] == guild_name]
         if not users:
             await ctx.send("No users found in that guild.")
             return
 
         embed = discord.Embed(title=f"Users in {guild_name}")
         for rank, user_list in groupby(sorted(users, key=lambda x: x["Rank"]), key=lambda x: x["Rank"]):
-            user_list = sorted(user_list, key=lambda x: x["Timezone"], reverse=True)
+            user_list = sorted(filter(lambda x: x["Timezone"] is not None, user_list), key=lambda x: x["Timezone"], reverse=True)
             user_str = "\n".join(f"{self.get_emoji(user['Rank'])}- {user['Name']}: {user['Timezone']}" for user in user_list)
             embed.add_field(name=f"R{rank}", value=user_str, inline=False)
 
@@ -345,25 +374,23 @@ class Management(commands.Cog):
         
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
-    async def user_list(self, ctx, page: int = 0):
+    async def user_list(self, ctx, page: int = 1):
         """Display a paginated list of users and their data."""
         user_list = []
         for user_id, user_data in self.timezones.items():
-            if user_data and 'name' in user_data and 'Timezone' in user_data:
-                user_list.append(user_data)
+            user_list.append(user_data)
         if user_list:
-            max_pages = (len(user_list) + 9) // 10  # Round up to the nearest multiple of 10
-            self.page = max(0, min(page, max_pages - 1))
+            max_pages = (len(user_list) + 24) // 25  # Round up to the nearest multiple of 25
+            self.page = max(1, min(page, max_pages))
             embed = discord.Embed(title="User List", color=0x00ff00)
-            start = self.page * 10
-            end = start + 10
+            start = self.page * 25 - 25
+            end = self.page * 25
             if end > len(user_list):
                 end = len(user_list)
-            embed.description = "\n".join(f"{user['Guild']} - {user['Rank']} - {user['Name']} -{user['IGN']} -({user['Timezone']})" for user in user_list[start:end])
-            embed.set_footer(text=f"Page {self.page+1}/{max_pages}")
+            embed.description = "\n".join(f"{user['Guild']} - {user['Rank']} - {user['Name']} - {user['IGN']} - {user['Timezone']}" for user in user_list[start:end])
+            embed.set_footer(text=f"Page {self.page}/{max_pages}")
             await ctx.send(embed=embed)
-        else:
-            await ctx.send("No users found.")
+       
 
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
@@ -386,6 +413,35 @@ class Management(commands.Cog):
             await ctx.send(embed=embed)
         else:
             await ctx.send("No roles found.")
-        
+   	
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def update_timezones(self, ctx):
+        """Update the IGN and Timezone of existing users from a CSV file.
+
+        The CSV file should have the following format:
+
+            Member (IGN),Discord tag,Timezone
+
+        """
+        csv_path = os.path.expanduser("~/storage/imospreadsheet.csv")
+        with open(csv_path, "r") as f:
+            reader = csv.DictReader(f)
+            updates = [(row["Member (IGN)"], row["Discord tag"], row["Timezone"]) for row in reader]
+
+        for ign, discord_tag, timezone in updates:
+            # Find the user by Discord tag
+            user = next((user for user in self.timezones.values() if user["Discord tag"] == discord_tag), None)
+            if user:
+                # Update the user's IGN and Timezone
+                user["IGN"] = ign
+                user["Timezone"] = timezone
+
+        # Save the updated timezones dictionary to timezones.json
+        with open("timezones.json", "w") as f:
+            json.dump(self.timezones, f, indent=4)
+
+        await ctx.send("Timezones updated successfully.")
+
 def setup(bot):
     bot.add_cog(Management(bot))
