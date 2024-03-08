@@ -283,6 +283,60 @@ class Management(commands.Cog):
         channel = self.bot.get_channel(1215443533037707334)
         if channel:
             await channel.send(embed=embed)
+                    
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def updateusers(self, ctx):
+        """Create or update user objects in the timezones dictionary for all members of the server.
+
+        This command will iterate over all members of the server, create or update their user objects
+        in the `timezones` dictionary, and save the updated dictionary to a JSON file.
+
+        """
+        updated_users = []
+        added_users = []
+        guild = ctx.guild
+        for member in guild.members:
+            guild_role = next((role for role in member.roles if role.name in self.guild_roles), None)
+            if not guild_role:
+                continue
+
+            guild_name = self.guild_roles[guild_role.name]['name']
+            rank = next((int(role.name[1]) for role in member.roles if role.name.startswith('r')), None)
+
+            user = {
+                str(member.id): {
+                    'Name': member.name,
+                    'IGN': None,
+                    'Timezone': None,
+                    'Guild': guild_name,
+                    'Rank': rank,
+                }
+            }
+
+            if str(member.id) in self.timezones:
+                updated_users.append(member.name)
+                self.timezones[str(member.id)].update(user[str(member.id)])
+            else:
+                added_users.append(member.name)
+                self.timezones.update(user)
+
+        self.save_timezones()
+
+        # Send an embed message to the user who executed the command
+        embed = discord.Embed(title="User Objects Updated", description="User objects have been updated for all members of the server.", color=0x00ff00)
+        embed.add_field(name="Updated Users", value=", ".join(updated_users), inline=False)
+        embed.add_field(name="Added Users", value=", ".join(added_users), inline=False)
+        await ctx.send(embed=embed)
+
+        # Send a log message to the log channel
+        log_channel = self.bot.get_channel(1215443533037707334)  # Replace this with the ID of your log channel
+        if log_channel:
+            embed = discord.Embed(title="User Objects Updated", description="User objects have been updated for all members of the server.", color=0x00ff00)
+            embed.add_field(name="Updated Users", value=", ".join(updated_users), inline=False)
+            embed.add_field(name="Added Users", value=", ".join(added_users), inline=False)
+            await log_channel.send(embed=embed)
+
         
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
