@@ -234,16 +234,14 @@ class Management(commands.Cog):
         rank = next((int(role.name[1]) for role in after.roles if role.name.startswith('r')), None)
 
         user = {
-            str(after.id): {
-                'Name': after.name,
-                'IGN': None,
-                'Timezone': None,
-                'Guild': guild_name,
-                'Rank': rank,
-            }
+            'Name': after.name,
+            'IGN': None,
+            'Timezone': None,
+            'Guild': guild_name,
+            'Rank': rank,
         }
 
-        self.timezones.update(user)  # Update the user object
+        self.timezones.setdefault(str(after.id), {}).update(user)  # Create or update the user object
         self.save_timezones()
 
         embed = discord.Embed(title="User updated", description=f"{after.mention} has updated their roles.", color=0xff0000)
@@ -268,16 +266,14 @@ class Management(commands.Cog):
         rank = next((int(role.name[1]) for role in member.roles if role.name.startswith('r')), None)
 
         user = {
-            str(member.id): {
-                'Name': member.name,
-                'IGN': None,
-                'Timezone': None,
-                'Guild': guild_name,
-                'Rank': rank,
-            }
+            'Name': member.name,
+            'IGN': None,
+            'Timezone': None,
+            'Guild': guild_name,
+            'Rank': rank,
         }
 
-        self.timezones.update(user)  # Update the user object
+        self.timezones[str(member.id)] = user  # Update the user object
         self.save_timezones()
 
         embed = discord.Embed(title="User Join", description=f"{member.mention} has joined the server.", color=0x00ff00)
