@@ -1,5 +1,6 @@
 import asyncio
 import discord
+from typing import Optional
 from discord.ext import commands
 import os
 
@@ -29,6 +30,39 @@ class Management(commands.Cog):
         self.max_pages = (len(timezones) + 9) // 10  # Round up to the nearest multiple of 10
         self.make_pages()
 
+        
+        
+        self.add_user = bot.command(name="add", help="Add a user to the timezones.json file.")
+        self.remove_user = bot.command(name="remove", help="Remove a user from the timezones.json file.")
+        self.updateusers = bot.command(name="updateusers", help="Update or create user objects in the timezones dictionary.")
+        self.add_guild_role = bot.command(name="addrole", help="Add a guild role to the JSON file.")
+        self.remove_guild_role = bot.command(name="removerole", help="Remove a guild role from the JSON file.")
+        self.timezone = bot.command(name="timezone", help="Display a timezone list of users in a guild.")
+        self.user_list = bot.command(name="list", help="Display a paginated list of users and their data.")
+        self.guild_roles = bot.command(name="roles", help="Display a paginated list of guild roles and their tags.")
+
+        self.add_user.add_argument("rank", help="Rank of the user.")
+        self.add_user.add_argument("name", help="Name of the user.")
+        self.add_user.add_argument("guild_name", help="Name of the guild.")
+        self.add_user.add_argument("--ign", help="In-game name of the user.")
+        self.add_user.add_argument("--timezone", help="Timezone of the user.")
+
+        self.remove_user.add_argument("member", help="The member to remove.")
+        self.remove_user.add_argument("--ign", help="In-game name of the user.")
+
+        self.updateusers.add_argument("--force", help="Force update all user objects in the timezones dictionary.", action="store_true")
+
+        self.add_guild_role.add_argument("guild_name", help="Name of the guild.")
+        self.add_guild_role.add_argument("tag", help="Tag of the guild.")
+
+        self.remove_guild_role.add_argument("guild_name_or_tag", help="Name or tag of the guild role to remove.")
+
+        self.timezone.add_argument("guild_name", help="Name of the guild.")
+
+        self.user_list.add_argument("page", type=int, default=0, help="Page number to display.")
+        self.guild_roles.add_argument("page", type=int, default=0, help="Page number to display.")
+        
+        
     def make_pages(self):
         self.pages = [self.timezones[i:i+10] for i in range(0, len(self.timezones), 10)]
 
@@ -362,7 +396,7 @@ class Management(commands.Cog):
     async def remove_guild_role(
         self,
         ctx,
-        guild_name_or_tag: Option(
+        guild_name_or_tag: Optional(
             str,
             "Enter the name or tag of the guild role you want to remove",
             choices=[
