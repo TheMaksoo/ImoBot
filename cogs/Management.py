@@ -25,7 +25,43 @@ class Management(commands.Cog):
             'R2': '🔧',
             'R1': '👤'
         }
+        self.page = 0
+        self.max_pages = (len(timezones) + 9) // 10  # Round up to the nearest multiple of 10
+        self.make_pages()
 
+    def make_pages(self):
+        self.pages = [self.timezones[i:i+10] for i in range(0, len(self.timezones), 10)]
+
+    def get_user_page(self, page=0):
+        self.page = page
+        if self.page < 0:
+            self.page = 0
+        if self.page >= self.max_pages:
+            self.page = self.max_pages - 1
+        embed = discord.Embed(title="User List", color=0x00ff00)
+        start = self.page * 10
+        end = start + 10
+        if end > len(self.timezones):
+            end = len(self.timezones)
+        embed.description = "\n".join(str(user) for user in self.pages[self.page])
+        embed.set_footer(text=f"Page {self.page+1}/{self.max_pages}")
+        return embed
+    
+    def get_guild_page(self, page=0):
+        self.page = page
+        if self.page < 0:
+            self.page = 0
+        if self.page >= self.max_pages:
+            self.page = self.max_pages - 1
+        embed = discord.Embed(title="Guild Role List", color=0x00ff00)
+        start = self.page * 10
+        end = start + 10
+        if end > len(self.guild_roles):
+            end = len(self.guild_roles)
+        embed.description = "\n".join(f"{role['name']} ({role['tag']})" for role in self.pages[self.page])
+        embed.set_footer(text=f"Page {self.page+1}/{self.max_pages}")
+        return embed
+    
     def get_emoji(self, rank):
         return self.ranks.get(rank, '🤷')
     
@@ -324,6 +360,20 @@ class Management(commands.Cog):
 
         await ctx.send(embed=embed)
         
+        
+    @commands.check(is_target_role)
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    async def user_list(ctx, page: int = 0):
+        """Display a paginated list of users and their data."""
+        user_list = [user for user in self.timezones.values()]
+        await ctx.send(embed=UserListView(timezones, user_list).get_user_page(page))
+    
+    @commands.check(is_target_role)
+    @bot.slash_command(guild_ids=[1102649117458563243])  
+    async def guild_roles(ctx, page: int = 0):
+        """Display a paginated list of guild roles and their tags."""
+        guild_roles = [role for role in self.guild_roles.values()]
+        await ctx.send(embed=GuildRoleListView(self.guild_roles, guild_roles).get_guild_page(page))
         
 def setup(bot):
     bot.add_cog(Management(bot))
