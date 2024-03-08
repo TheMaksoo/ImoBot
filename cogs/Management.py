@@ -18,7 +18,17 @@ class Management(commands.Cog):
         self.guild_roles_path = os.path.join('/home/container/storage', 'guild_roles.json')
         self.load_timezones()
         self.load_guild_roles()
+        self.ranks = {
+            'R5': '👑',
+            'R4': '🥈',
+            'R3': '🥉',
+            'R2': '🔧',
+            'R1': '👤'
+        }
 
+    def get_emoji(self, rank):
+        return self.ranks.get(rank, '🤷')
+    
     def load_timezones(self):
         """Load the timezones from the JSON file."""
         try:
@@ -252,9 +262,14 @@ class Management(commands.Cog):
         :param guild_name: Name of the guild.
         :param tag: Tag of the guild.
         """
-        self.guild_roles[guild_name] = {"tag": guild_tag, "name": guild_name}
-        self.save_guild_roles()
-        await ctx.send(f"Added {guild_name} with tag {tag} to the guild roles")
+        if guild_name in self.guild_roles:
+            await ctx.send(f"{guild_name} already exists in the guild roles")
+        elif tag in [guild_role['tag'] for guild_role in self.guild_roles.values()]:
+            await ctx.send(f"{tag} already exists in the guild roles")
+        else:
+            self.guild_roles[guild_name] = {"tag": tag, "name": guild_name}
+            self.save_guild_roles()
+            await ctx.send(f"Added {guild_name} with tag {tag} to the guild roles")
 
     @commands.check(is_target_role)
     @bot.slash_command(guild_ids=[1102649117458563243])
@@ -291,7 +306,23 @@ class Management(commands.Cog):
                     await ctx.send(f"Removed {guild_name} from the guild roles")
                     return
             await ctx.send(f"{guild_name_or_tag} not found in the guild roles")
-        
+
+    @commands.check(is_target_role)
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    async def timezone(self, ctx, guild_name: str):
+        """Display a timezone list of users in a guild."""
+        users = [user for user in self.timezones.values() if user["Guild"] == guild_name]
+        if not users:
+            await ctx.send("No users found in that guild.")
+            return
+
+        embed = discord.Embed(title=f"Users in {guild_name}")
+        for rank, user_list in groupby(sorted(users, key=lambda x: x["Rank"]), key=lambda x: x["Rank"]):
+            user_list = sorted(user_list, key=lambda x: x["Timezone"], reverse=True)
+            user_str = "\n".join(f"{self.get_emoji(user['Rank'])}- {user['Name']}: {user['Timezone']}" for user in user_list)
+            embed.add_field(name=f"R{rank}", value=user_str, inline=False)
+
+        await ctx.send(embed=embed)
         
         
 def setup(bot):
