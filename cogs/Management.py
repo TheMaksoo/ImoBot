@@ -1,8 +1,10 @@
 import asyncio
 import discord
-from typing import Optional
 from discord.ext import commands
 import os
+from typing import Optional
+import json
+from itertools import groupby
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,75 +28,6 @@ class Management(commands.Cog):
             'R2': '🔧',
             'R1': '👤'
         }
-        self.page = 0
-        self.max_pages = (len(timezones) + 9) // 10  # Round up to the nearest multiple of 10
-        self.make_pages()
-
-        
-        
-        self.add_user = bot.command(name="add", help="Add a user to the timezones.json file.")
-        self.remove_user = bot.command(name="remove", help="Remove a user from the timezones.json file.")
-        self.updateusers = bot.command(name="updateusers", help="Update or create user objects in the timezones dictionary.")
-        self.add_guild_role = bot.command(name="addrole", help="Add a guild role to the JSON file.")
-        self.remove_guild_role = bot.command(name="removerole", help="Remove a guild role from the JSON file.")
-        self.timezone = bot.command(name="timezone", help="Display a timezone list of users in a guild.")
-        self.user_list = bot.command(name="list", help="Display a paginated list of users and their data.")
-        self.guild_roles = bot.command(name="roles", help="Display a paginated list of guild roles and their tags.")
-
-        self.add_user.add_argument("rank", help="Rank of the user.")
-        self.add_user.add_argument("name", help="Name of the user.")
-        self.add_user.add_argument("guild_name", help="Name of the guild.")
-        self.add_user.add_argument("--ign", help="In-game name of the user.")
-        self.add_user.add_argument("--timezone", help="Timezone of the user.")
-
-        self.remove_user.add_argument("member", help="The member to remove.")
-        self.remove_user.add_argument("--ign", help="In-game name of the user.")
-
-        self.updateusers.add_argument("--force", help="Force update all user objects in the timezones dictionary.", action="store_true")
-
-        self.add_guild_role.add_argument("guild_name", help="Name of the guild.")
-        self.add_guild_role.add_argument("tag", help="Tag of the guild.")
-
-        self.remove_guild_role.add_argument("guild_name_or_tag", help="Name or tag of the guild role to remove.")
-
-        self.timezone.add_argument("guild_name", help="Name of the guild.")
-
-        self.user_list.add_argument("page", type=int, default=0, help="Page number to display.")
-        self.guild_roles.add_argument("page", type=int, default=0, help="Page number to display.")
-        
-        
-    def make_pages(self):
-        self.pages = [self.timezones[i:i+10] for i in range(0, len(self.timezones), 10)]
-
-    def get_user_page(self, page=0):
-        self.page = page
-        if self.page < 0:
-            self.page = 0
-        if self.page >= self.max_pages:
-            self.page = self.max_pages - 1
-        embed = discord.Embed(title="User List", color=0x00ff00)
-        start = self.page * 10
-        end = start + 10
-        if end > len(self.timezones):
-            end = len(self.timezones)
-        embed.description = "\n".join(str(user) for user in self.pages[self.page])
-        embed.set_footer(text=f"Page {self.page+1}/{self.max_pages}")
-        return embed
-    
-    def get_guild_page(self, page=0):
-        self.page = page
-        if self.page < 0:
-            self.page = 0
-        if self.page >= self.max_pages:
-            self.page = self.max_pages - 1
-        embed = discord.Embed(title="Guild Role List", color=0x00ff00)
-        start = self.page * 10
-        end = start + 10
-        if end > len(self.guild_roles):
-            end = len(self.guild_roles)
-        embed.description = "\n".join(f"{role['name']} ({role['tag']})" for role in self.pages[self.page])
-        embed.set_footer(text=f"Page {self.page+1}/{self.max_pages}")
-        return embed
     
     def get_emoji(self, rank):
         return self.ranks.get(rank, '🤷')
@@ -371,7 +304,7 @@ class Management(commands.Cog):
             embed.add_field(name="Added Users", value=", ".join(added_users), inline=False)
             await log_channel.send(embed=embed)
 
-        
+                    
     @bot.slash_command(guild_ids=[1102649117458563243])
     @commands.check(is_target_role)
     async def add_guild_role(self, ctx, guild_name: str, tag: str):
@@ -391,44 +324,10 @@ class Management(commands.Cog):
             self.save_guild_roles()
             await ctx.send(f"Added {guild_name} with tag {tag} to the guild roles")
 
-    @commands.check(is_target_role)
+  
+                    
     @bot.slash_command(guild_ids=[1102649117458563243])
-    async def remove_guild_role(
-        self,
-        ctx,
-        guild_name_or_tag: Optional(
-            str,
-            "Enter the name or tag of the guild role you want to remove",
-            choices=[
-                OptionChoice(name=guild_name, value=guild_name)
-                for guild_name in self.guild_roles
-            ] + [
-                OptionChoice(name=f"Tag: {guild_name['tag']}", value=guild_name["tag"])
-                for guild_name in self.guild_roles.values()
-            ],
-        ),
-    ):
-        """
-        Remove a guild role from the JSON file.
-
-        :param ctx: The context of the command.
-        :param guild_name_or_tag: Name or tag of the guild.
-        """
-        if guild_name_or_tag in self.guild_roles:
-            del self.guild_roles[guild_name_or_tag]
-            self.save_guild_roles()
-            await ctx.send(f"Removed {guild_name_or_tag} from the guild roles")
-        else:
-            for guild_name in self.guild_roles:
-                if self.guild_roles[guild_name]["tag"] == guild_name_or_tag:
-                    del self.guild_roles[guild_name]
-                    self.save_guild_roles()
-                    await ctx.send(f"Removed {guild_name} from the guild roles")
-                    return
-            await ctx.send(f"{guild_name_or_tag} not found in the guild roles")
-
     @commands.check(is_target_role)
-    @bot.slash_command(guild_ids=[1102649117458563243])
     async def timezone(self, ctx, guild_name: str):
         """Display a timezone list of users in a guild."""
         users = [user for user in self.timezones.values() if user["Guild"] == guild_name]
@@ -444,20 +343,49 @@ class Management(commands.Cog):
 
         await ctx.send(embed=embed)
         
-        
-    @commands.check(is_target_role)
     @bot.slash_command(guild_ids=[1102649117458563243])
-    async def user_list(ctx, page: int = 0):
-        """Display a paginated list of users and their data."""
-        user_list = [user for user in self.timezones.values()]
-        await ctx.send(embed=UserListView(timezones, user_list).get_user_page(page))
-    
     @commands.check(is_target_role)
-    @bot.slash_command(guild_ids=[1102649117458563243])  
-    async def guild_roles(ctx, page: int = 0):
+    async def user_list(self, ctx, page: int = 0):
+        """Display a paginated list of users and their data."""
+        user_list = []
+        for user_id, user_data in self.timezones.items():
+            if user_data and 'name' in user_data and 'Timezone' in user_data:
+                user_list.append(user_data)
+        if user_list:
+            max_pages = (len(user_list) + 9) // 10  # Round up to the nearest multiple of 10
+            self.page = max(0, min(page, max_pages - 1))
+            embed = discord.Embed(title="User List", color=0x00ff00)
+            start = self.page * 10
+            end = start + 10
+            if end > len(user_list):
+                end = len(user_list)
+            embed.description = "\n".join(f"{user['Guild']} - {user['Rank']} - {user['Name']} -{user['IGN']} -({user['Timezone']})" for user in user_list[start:end])
+            embed.set_footer(text=f"Page {self.page+1}/{max_pages}")
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("No users found.")
+
+    @bot.slash_command(guild_ids=[1102649117458563243])
+    @commands.check(is_target_role)
+    async def guild_roles(self, ctx, page: int = 0):
         """Display a paginated list of guild roles and their tags."""
-        guild_roles = [role for role in self.guild_roles.values()]
-        await ctx.send(embed=GuildRoleListView(self.guild_roles, guild_roles).get_guild_page(page))
+        guild_roles = []
+        for role_id, role_data in self.guild_roles.items():
+            if role_data and 'name' in role_data and 'tag' in role_data:
+                guild_roles.append(role_data)
+        if guild_roles:
+            max_pages = (len(guild_roles) + 9) // 10  # Round up to the nearest multiple of 10
+            self.page = max(0, min(page, max_pages - 1))
+            embed = discord.Embed(title="Guild Role List", color=0x00ff00)
+            start = self.page * 10
+            end = start + 10
+            if end > len(guild_roles):
+                end = len(guild_roles)
+            embed.description = "\n".join(f"{role['name']} ({role['tag']})" for role in guild_roles[start:end])
+            embed.set_footer(text=f"Page {self.page+1}/{max_pages}")
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("No roles found.")
         
 def setup(bot):
     bot.add_cog(Management(bot))
